@@ -12,19 +12,22 @@ The repository stays your own checkout. Pilot creates a bench for it in the benc
 
 ```text
 ~/Projects/gameplan/               your repository, your git
+benches/.frappe/                   the shared Frappe clone, bare
 benches/dev-gameplan/              created by pilot dev setup
   bench.toml                       [[apps]] name = "gameplan", path = "~/Projects/gameplan"
-  apps/frappe                      cloned by Pilot
+  apps/frappe                      a detached worktree of benches/.frappe
   apps/gameplan  ->  ~/Projects/gameplan
   sites/dev-gameplan.localhost/    developer_mode on, Administrator / admin
 ```
+
+Every dev bench checks Frappe out of one shared clone, so a new bench fetches only the commits it lacks. The clone sits beside the benches whose worktrees point into it. It is bare and has no branches of its own, so `develop` means origin's `develop`.
 
 ## Setup
 
 `pilot dev setup` finds the app from the current directory, so it works from any folder inside the repository.
 
 - `--database sqlite|mariadb|postgres`: the database for the site. SQLite is the default because it needs no server. MariaDB and PostgreSQL use the host's shared server from `common_config.toml`.
-- `--frappe-branch BRANCH`: the Frappe branch. The default is the checked-out branch when it is named `version-N`, otherwise `develop`.
+- `--frappe-branch BRANCH`: the Frappe branch. The default is the checked-out branch when it is named `version-N`, otherwise `develop`. A branch of the shared clone comes first, then origin's. `owner:branch` takes the branch from that owner's fork, `https://github.com/<owner>/frappe`. The bench gets a detached worktree at the branch's tip, because git checks out a branch in one worktree only. Pilot never moves it.
 
 Both are fixed once the bench exists. Run `pilot dev drop` to start over with different ones.
 
@@ -32,7 +35,11 @@ Setup records the bench's name in `pilot-bench` inside the repository's git dire
 
 Run `pilot dev setup` again after pulling. It installs new Python and JavaScript requirements, migrates the site, and builds the app's assets again. If an earlier run stopped before the app was installed on the site, it installs the app first.
 
-If an earlier run stopped before the site was created, for example with Ctrl-C, setup resumes the bench's initialization. Steps that already finished, such as the Frappe clone, are skipped. If the bench cannot be resumed, setup says so: run `pilot dev drop`, then `pilot dev setup`.
+If an earlier run stopped before the site was created, for example with Ctrl-C, setup resumes the bench's initialization. Steps that already finished, such as the Frappe worktree, are skipped. If the bench cannot be resumed, setup says so: run `pilot dev drop`, then `pilot dev setup`.
+
+## Frappe itself
+
+Run `pilot dev setup` inside a Frappe checkout or worktree to develop Frappe. That checkout is the bench's Frappe, so `--frappe-branch` does not apply: switch branches with git.
 
 ## Start
 

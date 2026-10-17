@@ -254,13 +254,14 @@ class App:
 
     @property
     def is_linked(self) -> bool:
-        """A local checkout symlinked into apps/. Its git state belongs to the developer."""
+        """A checkout that bench.toml names by path, symlinked into apps/ or checked out there.
+        Pilot never runs git in it."""
         return self.config.is_linked
 
     def link(self) -> None:
-        """Symlink the local checkout at config.path into apps/."""
+        """Symlink the local checkout at config.path into apps/, unless it is already there."""
         source = Path(self.config.path).resolve()
-        if self.path.is_symlink() and self.path.resolve() == source:
+        if self.path.resolve() == source:
             return
         if self.path.exists() or self.path.is_symlink():
             raise BenchError(f"'{self.path}' already exists - remove it before linking {source}.")

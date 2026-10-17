@@ -18,10 +18,11 @@ class DevInfoCommand(Command):
 
         workspace = Workspace.current()
         bench = workspace.bench
+        frappe = bench.config.framework_app
         rows = {
             "App": f"{workspace.app_name} ({workspace.root})",
             "Bench": f"{bench.config.name} ({bench.path})",
-            "Frappe": bench.config.framework_app.branch,
+            "Frappe": f"{frappe.branch} ({frappe.path})" if frappe.branch else frappe.path,
             "Database": bench.config.db_type,
             "Site": workspace.site_url,
         }

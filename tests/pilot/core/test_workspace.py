@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +16,7 @@ from pilot.core.bench import Bench
 from pilot.core.site import Site
 from pilot.core.site.provisioning import SiteProvisioner
 from pilot.core.workspace import Workspace
+from pilot.core.workspace.frappe_clone import FrappeClone
 from pilot.exceptions import BenchError, ConfigError
 from pilot.internal.cli.dispatch import CliContext, find_bench_root
 from pilot.managers.environment import PythonEnvManager
@@ -30,6 +32,24 @@ def benches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path.mkdir()
     monkeypatch.setattr("pilot.core.workspace.benches_dir", lambda: path)
     return path
+
+
+def git(path: Path, *args: str) -> str:
+    command = ["git", "-C", str(path), "-c", "user.email=t@t", "-c", "user.name=t", *args]
+    return subprocess.run(command, check=True, capture_output=True, text=True).stdout.strip()
+
+
+@pytest.fixture
+def frappe_origin(tmp_path: Path, benches: Path) -> Path:
+    """A Frappe repository on develop, which the shared clone in `benches` fetches from."""
+    origin = make_repo(tmp_path / "upstream" / "frappe", name="frappe", dev_script=False)
+    git(origin, "checkout", "-q", "-b", "develop")
+    git(origin, "add", ".")
+    git(origin, "commit", "-q", "-m", "Frappe")
+    clone = FrappeClone(benches / ".frappe")
+    clone.create()
+    clone.git("remote", "set-url", "origin", str(origin))
+    return origin
 
 
 def make_repo(path: Path, name: str = "gameplan", dev_script: bool = True) -> Path:
@@ -145,7 +165,9 @@ def test_another_bench_linking_a_symlink_loop_does_not_stop_the_lookup(tmp_path:
     assert found.path == bench.path
 
 
-def test_setup_creates_a_linked_bench_and_reruns_only_sync_it(tmp_path: Path, benches: Path) -> None:
+def test_setup_creates_a_linked_bench_and_reruns_only_sync_it(
+    tmp_path: Path, benches: Path, frappe_origin: Path
+) -> None:
     repo = make_repo(tmp_path / "gameplan")
     workspace = Workspace(repo)
 
@@ -188,7 +210,9 @@ def test_setup_creates_a_linked_bench_and_reruns_only_sync_it(tmp_path: Path, be
         workspace.setup(db_type="postgres")
 
 
-def test_setup_resumes_an_interrupted_initialization(tmp_path: Path, benches: Path) -> None:
+def test_setup_resumes_an_interrupted_initialization(
+    tmp_path: Path, benches: Path, frappe_origin: Path
+) -> None:
     workspace = Workspace(make_repo(tmp_path / "gameplan"))
 
     def interrupted_initialize(bench: Bench, *args, **kwargs) -> None:
@@ -218,7 +242,9 @@ def test_setup_resumes_an_interrupted_initialization(tmp_path: Path, benches: Pa
     assert workspace.site.exists
 
 
-def test_setup_resumes_a_site_left_without_the_app(tmp_path: Path, benches: Path) -> None:
+def test_setup_resumes_a_site_left_without_the_app(
+    tmp_path: Path, benches: Path, frappe_origin: Path
+) -> None:
     repo = make_repo(tmp_path / "gameplan")
 
     def provision_without_app(bench: Bench, name: str, *args, **kwargs) -> Site:
@@ -260,7 +286,9 @@ def test_setup_resumes_a_site_left_without_the_app(tmp_path: Path, benches: Path
     migrate.assert_called_once()
 
 
-def test_setup_after_remove_app_links_and_installs_the_app_again(tmp_path: Path, benches: Path) -> None:
+def test_setup_after_remove_app_links_and_installs_the_app_again(
+    tmp_path: Path, benches: Path, frappe_origin: Path
+) -> None:
     repo = make_repo(tmp_path / "gameplan")
     workspace = Workspace(repo)
     with (
@@ -298,7 +326,9 @@ def test_setup_after_remove_app_links_and_installs_the_app_again(tmp_path: Path,
     migrate.assert_called_once()
 
 
-def test_start_and_drop_wait_for_the_bench_to_stop(tmp_path: Path, benches: Path) -> None:
+def test_start_and_drop_wait_for_the_bench_to_stop(
+    tmp_path: Path, benches: Path, frappe_origin: Path
+) -> None:
     repo = make_repo(tmp_path / "gameplan")
     workspace = Workspace(repo)
     with (
@@ -430,3 +460,82 @@ def test_bench_commands_inside_the_repository_use_its_bench(
     root = find_bench_root(CliContext(installation_root=tmp_path / "pilot"))
 
     assert root == bench_path
+
+
+def test_each_bench_gets_a_detached_frappe_worktree_that_drop_removes(
+    tmp_path: Path, benches: Path, frappe_origin: Path
+) -> None:
+    workspaces = [Workspace(make_repo(tmp_path / folder)) for folder in ("gameplan", "gameplan-search")]
+    with (
+        patch.object(Bench, "initialize", autospec=True, side_effect=fake_initialize),
+        patch.object(PythonEnvManager, "install_app"),
+        patch.object(Site, "provision", side_effect=fake_provision),
+    ):
+        for workspace in workspaces:
+            workspace.setup()
+
+    develop = git(frappe_origin, "rev-parse", "HEAD")
+    for workspace in workspaces:
+        frappe = workspace.bench.apps_path / "frappe"
+        assert workspace.bench.config.framework_app == AppConfig("frappe", "", "develop", path=str(frappe))
+        assert BenchConfig.read(workspace.bench.path).framework_app.branch == "develop"
+        assert git(frappe, "rev-parse", "HEAD") == develop
+        assert git(frappe, "branch", "--show-current") == ""
+
+    def delete_bench(bench: Bench, *args) -> None:
+        shutil.rmtree(bench.path)
+
+    with patch.object(Site, "drop"), patch.object(Bench, "drop", autospec=True, side_effect=delete_bench):
+        workspaces[0].drop()
+
+    worktrees = git(benches / ".frappe", "worktree", "list", "--porcelain")
+    assert str(workspaces[0].bench.apps_path / "frappe") not in worktrees
+    assert str(workspaces[1].bench.apps_path / "frappe") in worktrees
+
+
+def test_setup_in_a_frappe_checkout_links_the_checkout_as_frappe(tmp_path: Path, benches: Path) -> None:
+    repo = make_repo(tmp_path / "frappe-fix", name="frappe", dev_script=False)
+    workspace = Workspace(repo)
+
+    with pytest.raises(BenchError, match="Switch its branch with git"):
+        workspace.setup(frappe_branch="develop")
+    with (
+        patch.object(Bench, "initialize", autospec=True, side_effect=fake_initialize),
+        patch.object(PythonEnvManager, "install_app"),
+        patch.object(Site, "provision", side_effect=fake_provision) as provision,
+    ):
+        workspace.setup()
+
+    bench = workspace.bench
+    assert bench.config.apps == [AppConfig("frappe", "", "", path=str(repo))]
+    assert (bench.apps_path / "frappe").resolve() == repo
+    assert workspace.frappe_worktree is None
+    assert not (benches / ".frappe").exists()
+    assert provision.call_args.args[2] == ["frappe"]
+
+
+def test_the_shared_frappe_clone_finds_local_origin_and_fork_branches(
+    tmp_path: Path, benches: Path, frappe_origin: Path
+) -> None:
+    clone = FrappeClone(benches / ".frappe")
+    fork = tmp_path / "fork" / "frappe"
+    subprocess.run(["git", "clone", "-q", str(frappe_origin), str(fork)], check=True)
+    git(fork, "checkout", "-q", "-b", "fix")
+    git(fork, "commit", "-q", "--allow-empty", "-m", "Fix")
+    clone.git("remote", "add", "someone", str(fork))
+
+    def report(message: str) -> None:
+        pass
+
+    assert clone.get_commit("develop", report) == git(frappe_origin, "rev-parse", "HEAD")
+    assert clone.get_commit("someone:fix", report) == git(fork, "rev-parse", "HEAD")
+    clone.git("branch", "mine", "refs/remotes/someone/fix")
+    clone.git("remote", "remove", "someone")
+    assert clone.get_commit("mine", report) == git(fork, "rev-parse", "HEAD")
+    with pytest.raises(BenchError, match="Could not fetch Frappe branch 'fix' from origin"):
+        clone.get_commit("fix", report)
+
+    clone.add_fork("someone")
+    assert clone.git("remote", "get-url", "someone") == "https://github.com/someone/frappe"
+    with pytest.raises(BenchError, match="not a GitHub user"):
+        clone.add_fork("../someone")

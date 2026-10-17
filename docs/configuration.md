@@ -71,13 +71,20 @@ branch = "develop"
 follow_branch = true
 ```
 
-A linked app uses `path` instead of `repo` and `branch`. Pilot symlinks that checkout into `apps/` and never pulls, switches, or checks out commits in it. `pilot dev setup` writes this entry:
+A linked app uses `path` instead of `repo`. Pilot symlinks that checkout into `apps/` and never pulls, switches, or checks out commits in it. `pilot dev setup` writes these entries:
 
 ```toml
+[[apps]]
+name = "frappe"
+path = "/home/me/pilot/benches/dev-gameplan/apps/frappe"
+branch = "develop"
+
 [[apps]]
 name = "gameplan"
 path = "/home/me/Projects/gameplan"
 ```
+
+A `path` inside the bench's own `apps/` is a worktree of the shared Frappe clone, and its `branch` is the one it was checked out from.
 
 `[redis]` defines separate cache and queue ports. `[[workers]]` defines queue groups and their process counts.
 

@@ -11,9 +11,10 @@ from pilot.exceptions import BenchError, ConfigError
 from pilot.utils import benches_dir
 
 if TYPE_CHECKING:
-    from pilot.config import BenchConfig
+    from pilot.config import AppConfig, BenchConfig
     from pilot.core.bench import Bench
     from pilot.core.site import Site
+    from pilot.core.workspace.frappe_clone import FrappeClone
 
 ADMIN_PASSWORD = "admin"
 DEFAULT_DB_TYPE = "sqlite"
@@ -22,7 +23,8 @@ DEFAULT_DB_TYPE = "sqlite"
 class Workspace:
     """A Frappe app repository developed on its own bench. The bench lives in the
     benches directory and links the repository into apps/, so the repository
-    stays the developer's own checkout."""
+    stays the developer's own checkout. Frappe is linked too: the repository itself
+    when it is Frappe, otherwise a worktree of the shared Frappe clone."""
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root).resolve()
@@ -58,6 +60,23 @@ class Workspace:
     @property
     def is_frappe_app(self) -> bool:
         return bool(self.app_name) and (self.root / self.app_name / "hooks.py").exists()
+
+    @property
+    def is_framework(self) -> bool:
+        return self.app_name == "frappe"
+
+    @property
+    def frappe_clone(self) -> "FrappeClone":
+        from pilot.core.workspace.frappe_clone import FrappeClone
+
+        return FrappeClone(benches_dir() / ".frappe")
+
+    @property
+    def frappe_worktree(self) -> Path | None:
+        """apps/frappe when it is a worktree of the shared Frappe clone, which Pilot owns."""
+        path = self.bench.apps_path.resolve() / "frappe"
+        linked_path = self.bench.config.framework_app.path
+        return path if linked_path and Path(linked_path).resolve() == path else None
 
     @property
     def default_frappe_branch(self) -> str:
@@ -134,14 +153,15 @@ class Workspace:
     ) -> "Site":
         """Create, initialise, and provision the bench, or bring an existing one
         up to date with the repository. Safe to run again."""
-        if self.app_name == "frappe":
-            raise BenchError("Pilot dev cannot develop the frappe framework itself yet.")
+        if self.is_framework and frappe_branch:
+            raise BenchError("This checkout is the bench's Frappe. Switch its branch with git instead.")
         self.bench = self.find_bench() or self.create_bench(
             db_type or DEFAULT_DB_TYPE, frappe_branch or self.default_frappe_branch, on_progress
         )
         if self.bench_record:
             self.bench_record.write_text(f"{self.bench.path.name}\n")
         self.ensure_matches(db_type, frappe_branch)
+        self.add_frappe_worktree(on_progress)
         if not self.bench.python.exists():
             self.bench.initialize(on_progress)
         elif not self.site.exists:
@@ -171,15 +191,38 @@ class Workspace:
         from pilot.config import AppConfig
         from pilot.core.bench import Bench
 
+        name = self.new_bench_name()
+        frappe = self.get_frappe_config(benches_dir() / name, frappe_branch)
+
         def configure(config: BenchConfig) -> None:
             config.admin.enabled = False
             config.allow_developer_mode = True
-            config.framework_app.branch = frappe_branch
-            config.apps.append(AppConfig(name=self.app_name, repo="", branch="", path=str(self.root)))
+            config.apps[0] = frappe
+            if not self.is_framework:
+                config.apps.append(AppConfig(name=self.app_name, repo="", branch="", path=str(self.root)))
 
-        name = self.new_bench_name()
-        on_progress(f"Creating bench '{name}' ({db_type}, frappe {frappe_branch}) for {self.root}")
+        on_progress(
+            f"Creating bench '{name}' ({db_type}, frappe {frappe.branch or 'checkout'}) for {self.root}"
+        )
         return Bench.create_at(benches_dir() / name, name, db_type=db_type, configure=configure)
+
+    def get_frappe_config(self, bench_path: Path, frappe_branch: str) -> "AppConfig":
+        """This checkout when it is Frappe, otherwise the bench's own worktree of `frappe_branch`."""
+        from pilot.config import AppConfig
+
+        if self.is_framework:
+            return AppConfig(name="frappe", repo="", branch="", path=str(self.root))
+        return AppConfig(
+            name="frappe", repo="", branch=frappe_branch, path=str(bench_path / "apps" / "frappe")
+        )
+
+    def add_frappe_worktree(self, on_progress: Callable[[str], None]) -> None:
+        path = self.frappe_worktree
+        if path is None or path.exists():
+            return
+        branch = self.bench.config.framework_app.branch
+        on_progress(f"Checking out Frappe {branch} from the shared clone...")
+        self.frappe_clone.add_worktree(path, branch, on_progress)
 
     def new_bench_name(self) -> str:
         slug = re.sub(r"[^a-z0-9]+", "-", self.root.name.lower()).strip("-") or "app"
@@ -259,11 +302,15 @@ class Workspace:
         bench.start(on_progress)
 
     def drop(self, on_progress: Callable[[str], None] = lambda message: None) -> None:
-        """Delete the bench and its site. The repository is left untouched."""
+        """Delete the bench, its site, and its worktree of the shared Frappe clone.
+        The repository is left untouched."""
         if self.is_running:
             raise BenchError(f"Bench '{self.bench.config.name}' is running. Stop 'pilot dev start' first.")
         if self.site.exists:
             self.site.drop(on_progress, no_backup=True)
+        frappe_worktree = self.frappe_worktree
         self.bench.drop(on_progress)
+        if frappe_worktree:
+            self.frappe_clone.prune_worktrees()
         if self.bench_record:
             self.bench_record.unlink(missing_ok=True)

@@ -83,13 +83,14 @@ FLAT_KEYS = {
 
 # Framework branches the setup wizard offers, newest/recommended first.
 FRAMEWORK_BRANCHES = ["version-16", "develop"]
+FRAMEWORK_REPO = "https://github.com/frappe/frappe"
 
 _DEFAULT_DATA: dict = {
     "bench": {"name": "", "python": "3.14"},
     "apps": [
         {
             "name": "frappe",
-            "repo": "https://github.com/frappe/frappe",
+            "repo": FRAMEWORK_REPO,
             "branch": FRAMEWORK_BRANCHES[0],
         }
     ],
@@ -560,7 +561,10 @@ class BenchConfig:
         apps: list[ConfigDict] = []
         for app in self.apps:
             if app.is_linked:
-                apps.append({"name": app.name, "path": app.path})
+                linked: ConfigDict = {"name": app.name, "path": app.path}
+                if app.branch:
+                    linked["branch"] = app.branch
+                apps.append(linked)
                 continue
             app_data: ConfigDict = {"name": app.name, "repo": app.repo, "branch": app.branch}
             if app.branches:
@@ -963,4 +967,3 @@ def _preserve_unknown_array(original: list, replacement: list, table: TomlSchema
         if isinstance(old_entry, Mapping) and isinstance(new_entry, Mapping):
             result[index] = _preserve_unknown(old_entry, new_entry, table)
     return result
-

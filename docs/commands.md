@@ -21,7 +21,7 @@ Run these inside a cloned app repository. See [App Development](development.md).
 - `pilot dev setup`: create a bench for the app and a site with the app installed. Safe to run again. See [Setup](development.md#setup) for the options, their defaults, and what a re-run does.
 - `pilot dev start`: run the bench in the foreground, with the app's own `dev` script if `package.json` has one. It runs the same processes as `pilot start`, after checking that setup finished.
 - `pilot dev info`: show the bench, site URL, database, and Frappe branch.
-- `pilot dev drop`: delete the bench and its site. The repository is not touched. It fails while `pilot dev start` runs.
+- `pilot dev drop`: delete the bench, its site, and its Frappe worktree. The repository is not touched. It fails while `pilot dev start` runs.
 
 Inside the repository, other bench commands such as `pilot frappe -- console` use its bench without `-b`.
 
