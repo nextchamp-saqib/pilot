@@ -89,8 +89,7 @@ class PythonAssetBuilder:
         if app.config.name == "frappe":
             NodePackages(app.path).ensure_installed()
 
-        # A linked checkout is built from its own source, never from a release.
-        if not force and not app.is_linked and not app.has_source_changes:
+        if not force and not app.has_source_changes:
             from pilot.core.app.prebuilt_assets import PrebuiltAssets
 
             prebuilt = PrebuiltAssets(app)

@@ -41,6 +41,12 @@ class GitRepo:
         return self._text("branch", "--show-current")
 
     @property
+    def upstream_branch(self) -> str:
+        """The remote's name for the branch that the current branch tracks, or ''."""
+        branch = self.branch
+        return self._text("config", f"branch.{branch}.merge").removeprefix("refs/heads/") if branch else ""
+
+    @property
     def head_sha(self) -> str:
         return self._text("rev-parse", "HEAD")
 

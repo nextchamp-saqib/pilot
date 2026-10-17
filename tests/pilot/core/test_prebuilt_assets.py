@@ -248,3 +248,33 @@ def test_replacing_frappe_s_entries_keeps_page_island_entries(tmp_path: Path) ->
         "desk.bundle.js": "/assets/frappe/dist/js/new.js",
         **island,
     }
+
+
+def _git(path: Path, *args: str) -> str:
+    command = ["git", "-C", str(path), "-c", "user.email=t@t", "-c", "user.name=t", *args]
+    return subprocess.run(command, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def test_a_linked_checkout_s_release_follows_the_branch_it_tracks(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    app.config.repo = ""
+    app.config.branch = ""
+    _git(app.path, "remote", "add", "origin", "https://github.com/frappe/myapp")
+    _git(app.path, "update-ref", "refs/remotes/origin/develop", "HEAD")
+    _git(app.path, "checkout", "-q", "-b", "fix-filters", "--track", "origin/develop")
+
+    assert (
+        PrebuiltAssets(app).release_url == "https://github.com/frappe/myapp/releases/download/assets-develop"
+    )
+
+
+def test_a_detached_checkout_s_release_follows_its_bench_toml_branch(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    app.config.repo = "https://github.com/frappe/myapp"
+    app.config.branch = "version-16"
+    _git(app.path, "checkout", "-q", "--detach")
+
+    assert (
+        PrebuiltAssets(app).release_url
+        == "https://github.com/frappe/myapp/releases/download/assets-version-16"
+    )

@@ -403,7 +403,7 @@ def test_removing_a_linked_app_unlinks_it_and_keeps_the_checkout(tmp_path: Path)
     assert bench.registered_apps() == ["frappe"]
 
 
-def test_linked_app_builds_from_source_with_the_bench_path(tmp_path: Path) -> None:
+def test_a_changed_linked_app_builds_from_source_with_the_bench_path(tmp_path: Path) -> None:
     repo = make_repo(tmp_path / "src" / "gameplan")
     (repo / "frontend").mkdir()
     (repo / "frontend" / "package.json").write_text("{}")
@@ -539,3 +539,22 @@ def test_the_shared_frappe_clone_finds_local_origin_and_fork_branches(
     assert clone.git("remote", "get-url", "someone") == "https://github.com/someone/frappe"
     with pytest.raises(BenchError, match="not a GitHub user"):
         clone.add_fork("../someone")
+
+
+def test_an_unchanged_linked_app_uses_prebuilt_assets(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path / "src" / "gameplan")
+    git(repo, "add", ".")
+    git(repo, "commit", "-q", "-m", "Gameplan")
+    bench = make_linked_bench(tmp_path / "bench", repo)
+    builder = PythonAssetBuilder(PythonEnvManager(bench))
+
+    with (
+        patch("pilot.core.app.prebuilt_assets.PrebuiltAssets") as prebuilt,
+        patch.object(PythonAssetBuilder, "setup_prebuilt_assets") as setup_prebuilt_assets,
+        patch.object(PythonAssetBuilder, "build_app_from_source") as build_app_from_source,
+    ):
+        prebuilt.return_value.install.return_value = True
+        builder.build_assets_for_app(bench.app("gameplan"))
+
+    setup_prebuilt_assets.assert_called_once()
+    build_app_from_source.assert_not_called()

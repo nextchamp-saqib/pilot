@@ -37,6 +37,8 @@ Run `pilot dev setup` again after pulling. It installs new Python and JavaScript
 
 If an earlier run stopped before the site was created, for example with Ctrl-C, setup resumes the bench's initialization. Steps that already finished, such as the Frappe worktree, are skipped. If the bench cannot be resumed, setup says so: run `pilot dev drop`, then `pilot dev setup`.
 
+Frappe and the app get prebuilt assets when their commit has published ones and the checkout has no local changes. Otherwise they are built from source.
+
 ## Frappe itself
 
 Run `pilot dev setup` inside a Frappe checkout or worktree to develop Frappe. That checkout is the bench's Frappe, so `--frappe-branch` does not apply: switch branches with git.

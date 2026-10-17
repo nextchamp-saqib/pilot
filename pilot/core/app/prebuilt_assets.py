@@ -97,9 +97,11 @@ class PrebuiltAssets:
         from pilot.integrations.git.github import parse_github_owner_repo
         from pilot.internal.git import GitRepo
 
-        branch = GitRepo(self.app.path).branch
+        # A linked checkout's branch is the developer's: the branch it tracks names the release.
+        repo = GitRepo(self.app.path)
+        branch = repo.upstream_branch or repo.branch or self.app.config.branch
         try:
-            owner, repository = parse_github_owner_repo(self.app.config.repo)
+            owner, repository = parse_github_owner_repo(self.app.config.repo or repo.remote_url)
         except GitProviderError:
             return None
         if not branch:

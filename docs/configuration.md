@@ -84,7 +84,7 @@ name = "gameplan"
 path = "/home/me/Projects/gameplan"
 ```
 
-A `path` inside the bench's own `apps/` is a worktree of the shared Frappe clone, and its `branch` is the one it was checked out from.
+A `path` inside the bench's own `apps/` is a worktree of the shared Frappe clone, and its `branch` is the one it was checked out from. A linked checkout gets prebuilt assets when its commit has published ones and it has no local changes. The release is named after the branch the checkout tracks, then the branch it is on, then `branch`.
 
 `[redis]` defines separate cache and queue ports. `[[workers]]` defines queue groups and their process counts.
 
