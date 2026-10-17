@@ -134,13 +134,17 @@ def test_page_islands_are_built_with_frappe_s_own_script(tmp_path: Path) -> None
 def test_a_declared_build_dir_gets_its_dependencies_when_only_the_root_has_them(tmp_path: Path) -> None:
     """Helpdesk installs `desk` from a root postinstall, so an installed root hides a missing `desk`."""
     app_path = tmp_path / "helpdesk"
-    write_package(app_path, scripts={"postinstall": "cd desk && yarn install", "build": "cd desk && yarn build"})
+    write_package(
+        app_path, scripts={"postinstall": "cd desk && yarn install", "build": "cd desk && yarn build"}
+    )
     (app_path / "yarn.lock").write_text("")
     (app_path / "node_modules").mkdir()
     (app_path / "node_modules" / ".yarn-integrity").write_text("")
     write_package(app_path / "desk", scripts={"build": "vite build"})
     (app_path / "desk" / "yarn.lock").write_text("")
-    (app_path / "pyproject.toml").write_text('[tool.bench.assets]\nbuild_dir = "./desk"\nout_dir = "./helpdesk/public/desk"\n')
+    (app_path / "pyproject.toml").write_text(
+        '[tool.bench.assets]\nbuild_dir = "./desk"\nout_dir = "./helpdesk/public/desk"\n'
+    )
 
     commands = build_app(app_path)
 
