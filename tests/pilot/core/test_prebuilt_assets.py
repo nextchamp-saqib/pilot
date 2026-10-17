@@ -22,15 +22,37 @@ def _app(tmp_path: Path) -> SimpleNamespace:
     (path / "myapp" / "public" / "dist" / "js").mkdir(parents=True)
     (path / "myapp" / "public" / "dist" / "js" / "old.bundle.AAAAAAAA.js").write_text("old")
     subprocess.run(["git", "init", "-q", str(path)], check=True)
-    subprocess.run(["git", "-C", str(path), "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "c"], check=True)
-    commit = subprocess.run(["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(path),
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "c",
+        ],
+        check=True,
+    )
+    commit = subprocess.run(
+        ["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
     return SimpleNamespace(path=path, installed_hash=commit, config=SimpleNamespace(name="myapp"))
 
 
 def _publish(directory: Path, app, manifest: dict | None = None, checksum: str | None = None) -> None:
     """What scripts/build-app-assets.sh writes: the archive and its .sha256."""
     name = f"myapp-{app.installed_hash}.tar.gz"
-    manifest = manifest or {"app": "myapp", "commit": app.installed_hash, "paths": ["myapp/public/dist", "myapp/www/x.html"]}
+    manifest = manifest or {
+        "app": "myapp",
+        "commit": app.installed_hash,
+        "paths": ["myapp/public/dist", "myapp/www/x.html"],
+    }
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
         files = {
@@ -44,7 +66,9 @@ def _publish(directory: Path, app, manifest: dict | None = None, checksum: str |
             info.size = len(data)
             archive.addfile(info, io.BytesIO(data))
     (directory / name).write_bytes(buffer.getvalue())
-    (directory / f"{name}.sha256").write_text(f"{checksum or hashlib.sha256(buffer.getvalue()).hexdigest()}  {name}\n")
+    (directory / f"{name}.sha256").write_text(
+        f"{checksum or hashlib.sha256(buffer.getvalue()).hexdigest()}  {name}\n"
+    )
 
 
 @pytest.fixture
@@ -89,7 +113,10 @@ def test_a_checksum_mismatch_is_an_error_not_a_silent_build(tmp_path: Path, rele
         ({"app": "myapp", "commit": "0" * 40, "paths": []}, "another commit"),
         ({"app": "myapp", "commit": None, "paths": ["../../escape"]}, "outside the app"),
         ({"app": "myapp", "commit": None, "paths": ["."]}, "outside the app"),
-        ({"app": "myapp", "commit": None, "paths": ["myapp/public/dist", "myapp/public/missing"]}, "do not contain"),
+        (
+            {"app": "myapp", "commit": None, "paths": ["myapp/public/dist", "myapp/public/missing"]},
+            "do not contain",
+        ),
     ],
 )
 def test_a_wrong_manifest_is_refused(tmp_path: Path, release: Path, manifest: dict, message: str) -> None:
@@ -114,7 +141,12 @@ def test_a_refused_archive_leaves_the_current_build_in_place(tmp_path: Path, rel
 
 
 def _manifest(app, **extra) -> dict:
-    return {"app": "myapp", "commit": app.installed_hash, "paths": ["myapp/public/dist", "myapp/www/x.html"], **extra}
+    return {
+        "app": "myapp",
+        "commit": app.installed_hash,
+        "paths": ["myapp/public/dist", "myapp/www/x.html"],
+        **extra,
+    }
 
 
 def test_the_build_s_assets_json_entries_travel_with_the_archive(tmp_path: Path, release: Path) -> None:
@@ -129,7 +161,9 @@ def test_the_build_s_assets_json_entries_travel_with_the_archive(tmp_path: Path,
     assert prebuilt.asset_maps == {"assets.json": entries, "assets-rtl.json": {}}
 
 
-def test_an_archive_without_assets_json_entries_keeps_the_file_name_scan(tmp_path: Path, release: Path) -> None:
+def test_an_archive_without_assets_json_entries_keeps_the_file_name_scan(
+    tmp_path: Path, release: Path
+) -> None:
     app = _app(tmp_path)
     _publish(release, app)
 
@@ -141,7 +175,9 @@ def test_an_archive_without_assets_json_entries_keeps_the_file_name_scan(tmp_pat
 
 def test_assets_json_entries_of_another_app_are_refused(tmp_path: Path, release: Path) -> None:
     app = _app(tmp_path)
-    _publish(release, app, _manifest(app, **{"assets.json": {"desk.bundle.js": "/assets/frappe/dist/js/desk.js"}}))
+    _publish(
+        release, app, _manifest(app, **{"assets.json": {"desk.bundle.js": "/assets/frappe/dist/js/desk.js"}})
+    )
 
     with pytest.raises(BenchError, match=r"invalid assets\.json"):
         PrebuiltAssets(app).install()
@@ -151,9 +187,13 @@ def test_merging_an_app_s_entries_drops_its_stale_keys(tmp_path: Path) -> None:
     from pilot.managers.python_assets import PythonAssetBuilder
 
     assets_json = tmp_path / "assets.json"
-    assets_json.write_text(json.dumps({"old.bundle.js": "/assets/myapp/dist/js/old.js", "desk.bundle.js": "/assets/frappe/x.js"}))
+    assets_json.write_text(
+        json.dumps({"old.bundle.js": "/assets/myapp/dist/js/old.js", "desk.bundle.js": "/assets/frappe/x.js"})
+    )
 
-    PythonAssetBuilder.merge_json(assets_json, {"new.bundle.js": "/assets/myapp/dist/js/new.js"}, replacing="/assets/myapp/")
+    PythonAssetBuilder.merge_json(
+        assets_json, {"new.bundle.js": "/assets/myapp/dist/js/new.js"}, replacing="/assets/myapp/"
+    )
 
     assert json.loads(assets_json.read_text()) == {
         "desk.bundle.js": "/assets/frappe/x.js",
@@ -198,7 +238,13 @@ def test_replacing_frappe_s_entries_keeps_page_island_entries(tmp_path: Path) ->
     assets_json.write_text(json.dumps({"desk.bundle.js": "/assets/frappe/dist/js/old.js", **island}))
 
     PythonAssetBuilder.merge_json(
-        assets_json, {"desk.bundle.js": "/assets/frappe/dist/js/new.js"}, replacing="/assets/frappe/", keeping=PAGE_ISLAND_URL
+        assets_json,
+        {"desk.bundle.js": "/assets/frappe/dist/js/new.js"},
+        replacing="/assets/frappe/",
+        keeping=PAGE_ISLAND_URL,
     )
 
-    assert json.loads(assets_json.read_text()) == {"desk.bundle.js": "/assets/frappe/dist/js/new.js", **island}
+    assert json.loads(assets_json.read_text()) == {
+        "desk.bundle.js": "/assets/frappe/dist/js/new.js",
+        **island,
+    }

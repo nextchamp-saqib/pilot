@@ -70,7 +70,9 @@ class PrebuiltAssets:
             return False
         name = f"{self.app.config.name}-{commit}.tar.gz"
         try:
-            with urllib.request.urlopen(f"{base_url}/{name}.sha256", timeout=_DOWNLOAD_TIMEOUT_SECONDS) as response:
+            with urllib.request.urlopen(
+                f"{base_url}/{name}.sha256", timeout=_DOWNLOAD_TIMEOUT_SECONDS
+            ) as response:
                 expected = response.read().decode().split()[0]
         except (urllib.error.URLError, OSError, IndexError) as error:
             print(f"  No prebuilt assets for {self.app.config.name} at {commit[:10]} ({error}).")
@@ -169,7 +171,10 @@ class PrebuiltAssets:
     @staticmethod
     def _download(url: str, destination: Path) -> str:
         digest = hashlib.sha256()
-        with urllib.request.urlopen(url, timeout=_DOWNLOAD_TIMEOUT_SECONDS) as response, destination.open("wb") as file:
+        with (
+            urllib.request.urlopen(url, timeout=_DOWNLOAD_TIMEOUT_SECONDS) as response,
+            destination.open("wb") as file,
+        ):
             while chunk := response.read(_CHUNK_BYTES):
                 digest.update(chunk)
                 file.write(chunk)

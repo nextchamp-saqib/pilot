@@ -169,7 +169,9 @@ class PythonAssetBuilder:
             from pilot.core.app.prebuilt_assets import PAGE_ISLAND_URL
 
             for name, entries in asset_maps.items():
-                self.merge_json(assets_dir / name, entries, replacing=f"/assets/{app_name}/", keeping=PAGE_ISLAND_URL)
+                self.merge_json(
+                    assets_dir / name, entries, replacing=f"/assets/{app_name}/", keeping=PAGE_ISLAND_URL
+                )
         print(f"  Linked {app_link} -> {app_public_dir.resolve()}")
 
     def build_page_islands(self) -> None:
