@@ -183,7 +183,12 @@ class PythonAssetBuilder:
         NodePackages(script.parent / "toolchain").ensure_installed()
         print("  Building Frappe UI page islands...")
         sys.stdout.flush()
-        self.run_compiler(["node", str(script), "--production"], cwd=frappe_path, stream_output=True)
+        self.run_compiler(
+            ["node", str(script), "--production"],
+            cwd=frappe_path,
+            env=self.manager._build_env(),
+            stream_output=True,
+        )
 
     def write_assets_json(self, app_name: str, dist_dir: Path, assets_dir: Path) -> None:
         assets = {

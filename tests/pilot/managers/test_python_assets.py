@@ -129,6 +129,7 @@ def test_page_islands_are_built_with_frappe_s_own_script(tmp_path: Path) -> None
         builder.build_page_islands()
 
     assert compile_islands.call_args.args[0] == ["node", str(script), "--production"]
+    assert compile_islands.call_args.kwargs["env"] == manager._build_env.return_value
 
 
 def test_a_declared_build_dir_gets_its_dependencies_when_only_the_root_has_them(tmp_path: Path) -> None:

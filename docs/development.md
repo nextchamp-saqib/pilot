@@ -49,7 +49,7 @@ Run `pilot dev setup` inside a Frappe checkout or worktree to develop Frappe. Th
 
 Both follow the bench, not the command, so `pilot start` inside the repository runs the same processes. `pilot dev start` also checks that setup finished and prints the site URL and login.
 
-The repository's real path is outside the bench, so tools that look for the bench by walking up from the app cannot find it. Pilot sets `FRAPPE_BENCH_PATH` for asset builds and the `dev` script instead. Apps built with frappe-ui need a frappe-ui version that reads it. Older versions fail to build the frontend and cannot resolve imports such as `../../../../sites/common_site_config.json`.
+The repository's real path is outside the bench, so tools that look for the bench by walking up from the app cannot find it. Pilot sets `FRAPPE_BENCH_PATH` and `FRAPPE_BENCH_ROOT`, which Frappe's page island build reads, for asset builds and the `dev` script instead. Apps built with frappe-ui need a frappe-ui version that reads it. Older versions fail to build the frontend and cannot resolve imports such as `../../../../sites/common_site_config.json`.
 
 The site is served at `http://dev-<folder>.localhost:<port>`. Browsers resolve every `*.localhost` name to this machine, and each checkout gets its own name, so logins in two checkouts do not overwrite each other's cookies.
 

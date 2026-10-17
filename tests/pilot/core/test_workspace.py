@@ -422,6 +422,7 @@ def test_a_changed_linked_app_builds_from_source_with_the_bench_path(tmp_path: P
     assert [call.args[0][-1] for call in run_compiler.call_args_list] == ["gameplan", "build"]
     for call in run_compiler.call_args_list:
         assert call.kwargs["env"]["FRAPPE_BENCH_PATH"] == str(bench.path)
+        assert call.kwargs["env"]["FRAPPE_BENCH_ROOT"] == str(bench.path)
 
 
 def test_the_bench_config_decides_admin_and_the_app_dev_script(tmp_path: Path) -> None:
@@ -440,6 +441,7 @@ def test_the_bench_config_decides_admin_and_the_app_dev_script(tmp_path: Path) -
     assert linked_processes["gameplan-dev"].working_dir == linked.apps_path / "gameplan"
     assert linked_processes["gameplan-dev"].env == {
         "FRAPPE_BENCH_PATH": str(linked.path),
+        "FRAPPE_BENCH_ROOT": str(linked.path),
         "FRAPPE_WEB_SERVER_PORT": str(linked.config.http_port),
     }
     assert "admin" in plain_processes

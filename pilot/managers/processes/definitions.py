@@ -82,7 +82,8 @@ class ProcessDefinitionBuilder:
         ]
 
     def app_dev_definition(self, app: "App") -> ProcessDefinition:
-        # frappe-ui's Vite plugins read these, since a linked app has no bench folder above it.
+        # frappe-ui's Vite plugins and Frappe's island build read these, since a linked app
+        # has no bench folder above it.
         name = f"{app.config.name}-dev"
         return ProcessDefinition(
             name=name,
@@ -90,6 +91,7 @@ class ProcessDefinitionBuilder:
             log_file=self.bench.logs_path / f"{name}.log",
             env={
                 "FRAPPE_BENCH_PATH": str(self.bench.path),
+                "FRAPPE_BENCH_ROOT": str(self.bench.path),
                 "FRAPPE_WEB_SERVER_PORT": str(self.bench.config.http_port),
             },
             working_dir=app.path,
