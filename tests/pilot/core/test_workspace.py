@@ -412,7 +412,7 @@ def test_a_changed_linked_app_builds_from_source_with_the_bench_path(tmp_path: P
 
     with (
         patch("pilot.core.app.prebuilt_assets.PrebuiltAssets") as prebuilt,
-        patch("pilot.core.app.node_packages.shutil.which", side_effect=lambda name: name),
+        patch("pilot.core.app.node_packages.shutil.which", side_effect=lambda name, **_: name),
         patch("pilot.core.app.node_packages.run_command"),
         patch.object(PythonAssetBuilder, "run_compiler") as run_compiler,
     ):
