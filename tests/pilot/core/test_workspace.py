@@ -448,6 +448,17 @@ def test_the_bench_config_decides_admin_and_the_app_dev_script(tmp_path: Path) -
     assert not any(name.endswith("-dev") for name in plain_processes)
 
 
+def test_every_dev_process_finds_the_bench_of_a_linked_frappe(tmp_path: Path) -> None:
+    bench = make_linked_bench(tmp_path / "bench", make_repo(tmp_path / "src" / "gameplan"))
+
+    with patch("pilot.core.app.node_packages.shutil.which", side_effect=lambda name, **_: name):
+        processes = {pd.name: pd for pd in ProcessManager(bench)._process_definitions()}
+
+    for name in ("web", "socketio", "watch"):
+        assert processes[name].env["FRAPPE_BENCH_ROOT"] == str(bench.path), name
+        assert processes[name].env["FRAPPE_BENCH_PATH"] == str(bench.path), name
+
+
 def test_bench_commands_inside_the_repository_use_its_bench(
     tmp_path: Path, benches: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

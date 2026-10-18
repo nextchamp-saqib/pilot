@@ -72,7 +72,14 @@ class ProcessDefinitionBuilder:
         if has_admin and self.watch_admin_js:
             defs.append(self.admin_frontend_dev_definition())
         defs.extend(self.linked_app_dev_definitions())
+        for pd in defs:
+            pd.env = {**self.bench_env(), **pd.env}
         return defs
+
+    def bench_env(self) -> dict:
+        """Where Frappe's Node and Python code find the bench. They otherwise walk up from
+        their own real path, which is outside the bench when Frappe or the app is linked."""
+        return {"FRAPPE_BENCH_PATH": str(self.bench.path), "FRAPPE_BENCH_ROOT": str(self.bench.path)}
 
     def linked_app_dev_definitions(self) -> list[ProcessDefinition]:
         return [
@@ -82,18 +89,12 @@ class ProcessDefinitionBuilder:
         ]
 
     def app_dev_definition(self, app: "App") -> ProcessDefinition:
-        # frappe-ui's Vite plugins and Frappe's island build read these, since a linked app
-        # has no bench folder above it.
         name = f"{app.config.name}-dev"
         return ProcessDefinition(
             name=name,
             argv=NodePackages(app.path).get_script_command("dev"),
             log_file=self.bench.logs_path / f"{name}.log",
-            env={
-                "FRAPPE_BENCH_PATH": str(self.bench.path),
-                "FRAPPE_BENCH_ROOT": str(self.bench.path),
-                "FRAPPE_WEB_SERVER_PORT": str(self.bench.config.http_port),
-            },
+            env={"FRAPPE_WEB_SERVER_PORT": str(self.bench.config.http_port)},
             working_dir=app.path,
             critical=False,
         )
