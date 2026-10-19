@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -11,6 +12,7 @@ from unittest.mock import ANY
 
 import pytest
 
+from pilot.exceptions import BenchError
 from pilot.managers.processes.definitions import ProcessDefinition
 from pilot.managers.processes.local import ProcessManager
 from tests.pilot.managers.test_managers_extra import make_bench
@@ -35,10 +37,42 @@ def test_reload_workers_is_a_noop_when_the_bench_is_stopped(tmp_path: Path, monk
 def test_reload_workers_queues_a_web_request(tmp_path: Path, monkeypatch) -> None:
     manager = _manager(tmp_path, monkeypatch)
     monkeypatch.setattr(manager, "is_running", lambda: True)
+    monkeypatch.setattr(manager, "wait_for_reload", lambda: None)
 
     manager.reload_workers(web_only=True)
 
     assert manager.reload_request_file.read_text() == "web"
+
+
+def test_the_request_stays_until_the_restart_is_done(tmp_path: Path, monkeypatch) -> None:
+    manager = _manager(tmp_path, monkeypatch)
+    manager._procs = {"web": subprocess.Popen(["sleep", "30"])}
+    monkeypatch.setattr(manager, "_terminate", lambda proc: proc.kill())
+    seen: list[bool] = []
+    monkeypatch.setattr(manager, "_spawn", lambda pd: seen.append(manager.reload_request_file.exists()))
+
+    manager.reload_request_file.write_text("web")
+    manager._apply_reload_request({"web": _definition("web")})
+
+    assert seen == [True]
+    assert not manager.reload_request_file.exists()
+
+
+def test_wait_for_reload_returns_once_the_request_is_done_and_web_listens(
+    tmp_path: Path, monkeypatch
+) -> None:
+    manager = _manager(tmp_path, monkeypatch)
+    monkeypatch.setattr(manager, "is_running", lambda: True)
+    with socket.socket() as web:
+        web.bind(("127.0.0.1", 0))
+        web.listen()
+        manager.bench.config.http_port = web.getsockname()[1]
+        manager.reload_request_file.write_text("web")
+        with pytest.raises(BenchError):
+            manager.wait_for_reload(timeout=0.5)
+
+        manager.reload_request_file.unlink()
+        manager.wait_for_reload(timeout=0.5)
 
 
 def _definition(name: str) -> ProcessDefinition:

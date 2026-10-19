@@ -56,6 +56,8 @@ _DATASTORES = frozenset({"redis_cache", "redis_queue"})
 _STOP_GRACE_SECONDS = 5
 # The runner takes up to a grace period for the workload, then one for Redis.
 _STOP_TIMEOUT_SECONDS = 30
+# A restarted web imports the apps before it listens.
+_RELOAD_TIMEOUT_SECONDS = 120
 
 _COLORS = [
     "\033[36m",
@@ -233,6 +235,18 @@ class ProcessManager:
             return
         self.bench.pids_path.mkdir(parents=True, exist_ok=True)
         self.reload_request_file.write_text("web" if web_only else "workload")
+        self.wait_for_reload()
+
+    def wait_for_reload(self, timeout: float = _RELOAD_TIMEOUT_SECONDS) -> None:
+        """Return once the runner has restarted the processes and web accepts
+        connections again, so a request right after a build reaches the new code."""
+        deadline = time.monotonic() + timeout
+        while self.reload_request_file.exists() or not _tcp_port_open(self.bench.config.http_port):
+            if not self.is_running():
+                return
+            if time.monotonic() > deadline:
+                raise BenchError(f"Web did not come back within {timeout:.0f}s of the reload.")
+            time.sleep(0.2)
 
     def _clear_frappe_cache(self) -> None:
         """Drop the cached app/module map and asset manifest, so restarted
@@ -246,15 +260,18 @@ class ProcessManager:
             scope = self.reload_request_file.read_text().strip()
         except OSError:
             return
-        self.reload_request_file.unlink(missing_ok=True)
         names = ["web"] if scope == "web" else [n for n in self._procs if n not in _NON_RELOADABLE]
-        for name in names:
-            definition = defs_by_name.get(name)
-            if definition is None or name not in self._procs:
-                continue
-            print(f"[{name}] reloading", file=sys.stderr)
-            self._terminate(self._procs[name])
-            self._spawn(definition)
+        try:
+            for name in names:
+                definition = defs_by_name.get(name)
+                if definition is None or name not in self._procs:
+                    continue
+                print(f"[{name}] reloading", file=sys.stderr)
+                self._terminate(self._procs[name])
+                self._spawn(definition)
+        finally:
+            # Removed once the restart is done: wait_for_reload reads it.
+            self.reload_request_file.unlink(missing_ok=True)
 
     def _terminate(self, proc: subprocess.Popen) -> None:
         with contextlib.suppress(ProcessLookupError, OSError):
