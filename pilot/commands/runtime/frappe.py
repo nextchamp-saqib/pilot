@@ -17,6 +17,7 @@ class FrappeCommand(Command):
         "Example: pilot -b NAME frappe --site SITE migrate. "
         "Add --help after a Frappe command to see its options."
     )
+    needs_redis: ClassVar[bool] = True
 
     args: tuple[str, ...] = ()
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -275,6 +276,19 @@ class Bench:
         from pilot.core.bench.runtime import BenchRuntime
 
         BenchRuntime(self).stop(on_progress)
+
+    @contextmanager
+    def running_redis(self) -> Iterator[None]:
+        """Serve this bench's Redis for the duration, for Frappe commands that need it
+        while the bench is stopped. A production bench's Redis belongs to its process
+        manager, so a second one is never started on its ports."""
+        from pilot.managers.redis import RedisManager
+
+        if self.config.production.enabled:
+            yield
+            return
+        with RedisManager(self.config.redis, self).running():
+            yield
 
     def restart_workload(
         self,

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 class NewSiteCommand(Command):
     name: ClassVar[str] = "new-site"
     help: ClassVar[str] = "Create a new site and add it to bench.toml."
+    needs_redis: ClassVar[bool] = True
 
     site_name: Annotated[str, Arg(help="Site name (e.g. site2.localhost).", metavar="name")]
     admin_password: Annotated[str, Arg(help="Frappe admin password.")] = "admin"

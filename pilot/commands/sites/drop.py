@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 class DropSiteCommand(Command):
     name: ClassVar[str] = "drop-site"
     help: ClassVar[str] = "Drop a site, and remove it from bench.toml, nginx and the backup schedule."
+    needs_redis: ClassVar[bool] = True
 
     site_name: Annotated[str, Arg(help="Site name.", metavar="site")]
     no_backup: Annotated[bool, Arg(help="Drop without the backup Frappe takes first.")] = False
@@ -51,7 +52,9 @@ class DropSiteCommand(Command):
             raise BenchError(f"Could not read the drop-site arguments: {error}") from error
         site_name = parsed.site_name or parsed.site
         if parsed.command != "drop-site" or not site_name:
-            raise BenchError("Usage: pilot drop-site SITE [--no-backup] [--force] [--archived-sites-path PATH]")
+            raise BenchError(
+                "Usage: pilot drop-site SITE [--no-backup] [--force] [--archived-sites-path PATH]"
+            )
         command = cls(
             bench,
             site_name=site_name,

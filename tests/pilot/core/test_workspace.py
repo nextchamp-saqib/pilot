@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -22,7 +23,6 @@ from pilot.internal.cli.dispatch import CliContext, find_bench_root
 from pilot.managers.environment import PythonEnvManager
 from pilot.managers.processes.local import ProcessManager
 from pilot.managers.python_assets import PythonAssetBuilder
-from pilot.managers.redis import RedisManager
 from tests.pilot.commands.test_commands import make_bench
 
 
@@ -32,6 +32,11 @@ def benches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path.mkdir()
     monkeypatch.setattr("pilot.core.workspace.benches_dir", lambda: path)
     return path
+
+
+@pytest.fixture(autouse=True)
+def no_redis(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(Bench, "running_redis", lambda self: contextlib.nullcontext())
 
 
 def git(path: Path, *args: str) -> str:
@@ -179,7 +184,7 @@ def test_setup_creates_a_linked_bench_and_reruns_only_sync_it(
         patch.object(Site, "installed_apps", return_value=["frappe", "gameplan"]),
         patch.object(Site, "install_app") as install_app,
         patch.object(Site, "migrate") as migrate,
-        patch.object(RedisManager, "running") as redis_running,
+        patch.object(Bench, "running_redis") as running_redis,
         patch.object(PythonEnvManager, "build_assets_for_app") as build_assets,
     ):
         site = workspace.setup()
@@ -203,7 +208,7 @@ def test_setup_creates_a_linked_bench_and_reruns_only_sync_it(
     install_requirements.assert_called_once()
     install_app.assert_not_called()
     migrate.assert_called_once()
-    redis_running.assert_called_once()
+    assert running_redis.call_count == 2
     assert [call.args[0].config.name for call in build_assets.call_args_list] == ["gameplan"]
 
     with pytest.raises(BenchError, match="uses database 'sqlite', not 'postgres'"):
@@ -276,7 +281,6 @@ def test_setup_resumes_a_site_left_without_the_app(
         patch.object(SiteProvisioner, "write_pilot_communication_config"),
         patch.object(SiteProvisioner, "add_to_hosts"),
         patch.object(SiteProvisioner, "reload_nginx"),
-        patch.object(RedisManager, "running"),
         patch.object(PythonEnvManager, "build_assets_for_app"),
     ):
         workspace.setup()
@@ -314,7 +318,6 @@ def test_setup_after_remove_app_links_and_installs_the_app_again(
         patch.object(SiteProvisioner, "write_pilot_communication_config"),
         patch.object(SiteProvisioner, "add_to_hosts"),
         patch.object(SiteProvisioner, "reload_nginx"),
-        patch.object(RedisManager, "running"),
         patch.object(PythonEnvManager, "build_assets_for_app"),
     ):
         workspace.setup()

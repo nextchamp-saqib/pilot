@@ -200,7 +200,7 @@ def run_frappe(context: CliContext, args: list[str]) -> None:
     from pilot.commands.runtime.frappe import FrappeCommand
 
     with error_boundary(context):
-        FrappeCommand(load_bench(context), args=tuple(args)).run()
+        FrappeCommand(load_bench(context), args=tuple(args)).execute()
 
 
 def run_native(context: CliContext, remaining: list[str]) -> None:

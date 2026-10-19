@@ -40,11 +40,21 @@ class Command:
     group: ClassVar[str | None] = None
     bench_mode: ClassVar[BenchMode] = BenchMode.AUTO
     supports_all_benches: ClassVar[bool] = False
+    # Runs Frappe code that reaches Redis, such as an app's install hook enqueueing a job.
+    needs_redis: ClassVar[bool] = False
 
     bench: Bench | None = None
 
     def run(self) -> None:
         raise NotImplementedError
+
+    def execute(self) -> None:
+        """Run the command, with its bench's Redis up for the duration when it needs it."""
+        if not (self.needs_redis and self.bench):
+            self.run()
+            return
+        with self.bench.running_redis():
+            self.run()
 
     def report(self, message: str) -> None:
         print(message)

@@ -167,10 +167,11 @@ class Workspace:
         elif not self.site.exists:
             self.resume_initialization(on_progress)
         self.restore_app(on_progress)
-        if self.site.exists:
-            self.sync(on_progress)
-        else:
-            self.create_site(on_progress)
+        with self.bench.running_redis():
+            if self.site.exists:
+                self.sync(on_progress)
+            else:
+                self.create_site(on_progress)
         self.configure_site()
         return self.site
 
@@ -278,16 +279,14 @@ class Workspace:
         the app's assets. Also finishes the site's setup if an interrupted setup
         left the site without the app."""
         from pilot.managers.environment import PythonEnvManager
-        from pilot.managers.redis import RedisManager
 
         site = self.site
         app = self.bench.app(self.app_name)
         self.bench.install_requirements(on_progress)
-        with RedisManager(self.bench.config.redis, self.bench).running():
-            if self.app_name not in site.installed_apps():
-                site.finish_provisioning([self.app_name], on_progress)
-            on_progress(f"Migrating {site.config.name}...")
-            site.migrate()
+        if self.app_name not in site.installed_apps():
+            site.finish_provisioning([self.app_name], on_progress)
+        on_progress(f"Migrating {site.config.name}...")
+        site.migrate()
         PythonEnvManager(self.bench).build_assets_for_app(app)
 
     def start(self, on_progress: Callable[[str], None] = lambda message: None) -> None:

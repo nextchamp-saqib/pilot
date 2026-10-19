@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 class InstallAppCommand(Command):
     name: ClassVar[str] = "install-app"
     help: ClassVar[str] = "Install one or more apps on a site."
+    needs_redis: ClassVar[bool] = True
 
     site_name: Annotated[str, Arg(help="Site name.", metavar="site")]
     app_names: Annotated[list[str], Arg(help="App name(s) to install.", metavar="apps")]

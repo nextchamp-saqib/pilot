@@ -89,7 +89,7 @@ def dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, context:
         printer = getattr(args, "_help_printer", None)
         (printer or parser.print_help)()
         return
-    command_from_args(cls, args, _resolve_bench(cls, context)).run()
+    command_from_args(cls, args, _resolve_bench(cls, context)).execute()
 
 
 def _resolve_bench(cls: type[Command], context: CliContext):
@@ -133,7 +133,7 @@ def dispatch_all(args: argparse.Namespace, parser: argparse.ArgumentParser, cont
             continue
         print(f"== {name} ==")
         try:
-            command_from_args(cls, args, bench).run()
+            command_from_args(cls, args, bench).execute()
         except BenchError as e:
             failed.append(name)
             print(str(e))
