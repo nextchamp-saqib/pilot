@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from unittest.mock import ANY
+
+import pytest
 
 from pilot.managers.processes.definitions import ProcessDefinition
 from pilot.managers.processes.local import ProcessManager
@@ -206,3 +210,28 @@ assert manager._procs["probe"].wait(timeout=5) == 0
     )
 
     assert output.read_text() == ""
+
+
+def test_stop_returns_once_the_runner_has_exited(tmp_path: Path, monkeypatch) -> None:
+    manager = _manager(tmp_path, monkeypatch)
+    # A runner that, like the real one, drains for a while after SIGTERM. Started
+    # detached, so its exit is reaped by init and not left as this test's zombie.
+    runner = (
+        "import signal, sys, time\n"
+        "signal.signal(signal.SIGTERM, lambda *_: (time.sleep(1), sys.exit(0)))\n"
+        "time.sleep(60)\n"
+    )
+    launcher = subprocess.run(
+        ["sh", "-c", f'{sys.executable} -c "$0" >/dev/null 2>&1 & echo $!', runner],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    pid = int(launcher.stdout.strip())
+    manager.pid_file.write_text(str(pid))
+    time.sleep(0.5)
+
+    manager.stop()
+
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)

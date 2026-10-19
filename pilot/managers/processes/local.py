@@ -54,6 +54,8 @@ _NON_RELOADABLE = frozenset({"admin", "admin-ui", "redis_cache", "redis_queue", 
 # Stopped last, so their clients are already gone and cannot log a lost connection.
 _DATASTORES = frozenset({"redis_cache", "redis_queue"})
 _STOP_GRACE_SECONDS = 5
+# The runner takes up to a grace period for the workload, then one for Redis.
+_STOP_TIMEOUT_SECONDS = 30
 
 _COLORS = [
     "\033[36m",
@@ -66,6 +68,26 @@ _COLORS = [
     "\033[93m",
 ]
 _RESET = "\033[0m"
+
+
+def wait_for_exit(pid: int, timeout: float = _STOP_TIMEOUT_SECONDS) -> None:
+    """Return once the runner has stopped its processes and exited, so the next
+    start finds the bench's ports free."""
+    deadline = time.monotonic() + timeout
+    while _is_alive(pid):
+        if time.monotonic() > deadline:
+            raise BenchError(f"Process {pid} did not stop within {timeout:.0f}s.")
+        time.sleep(0.1)
+
+
+def _is_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass
+    return True
 
 
 class ProcessManager:
@@ -163,6 +185,7 @@ class ProcessManager:
                 os.kill(pid, signal.SIGTERM)
             except ProcessLookupError as exc:
                 raise BenchError(f"Process {pid} is not running. Removed stale PID file.") from exc
+            wait_for_exit(pid)
             return
 
         # No pid file (e.g. pre-init setup wizard): stop by port.
