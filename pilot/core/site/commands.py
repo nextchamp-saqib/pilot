@@ -95,6 +95,21 @@ class SiteCommands:
         if result.returncode != 0:
             raise BenchError(f"Failed to enable the scheduler for {self.site.config.name}")
 
+    def set_country(self, country: str) -> None:
+        program = (
+            "import sys, frappe\n"
+            "frappe.init(site=sys.argv[1], sites_path='.')\n"
+            "frappe.connect()\n"
+            "if not frappe.db.exists('Country', sys.argv[2]):\n"
+            "    sys.exit(f'Unknown country: {sys.argv[2]}')\n"
+            "frappe.db.set_single_value('System Settings', 'country', sys.argv[2])\n"
+            "frappe.db.commit()\n"
+        )
+        run_command(
+            [str(self.site.bench.python), "-c", program, self.site.config.name, country],
+            cwd=self.site.bench.sites_path,
+        )
+
     @contextmanager
     def setup_credentials(self, db_type: str, database: str = "") -> Iterator[list[str]]:
         """Database credential arguments for one frappe setup command.

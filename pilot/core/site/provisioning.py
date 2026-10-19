@@ -22,12 +22,14 @@ class SiteProvisioner:
         apps: list[str],
         admin_password: str | None,
         db_type: str | None = None,
+        country: str | None = None,
     ) -> None:
         self.bench = bench
         self.name = name
         self.apps = apps
         self.admin_password = admin_password
         self.db_type = db_type
+        self.country = country
 
     def provision(self, on_progress: Callable[[str], None]) -> "Site":
         from pilot.core.site import Site
@@ -51,6 +53,8 @@ class SiteProvisioner:
         )
         on_progress(f"Creating site '{self.name}'...")
         site.create(db_type=self.db_type)
+        if self.country:
+            site.set_country(self.country)
         self.write_email_sender_name(site)
         self.write_route_policy(site)
         self.finish(site, on_progress)

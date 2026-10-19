@@ -3,6 +3,10 @@ from dataclasses import dataclass, field
 
 from pilot.config.route import RoutePolicy
 
+DEFAULT_ADMIN_PASSWORD = "frappe"
+# Without one, Frappe's setup wizard guesses the country from the browser's time zone.
+DEFAULT_DEV_COUNTRY = "United States"
+
 
 def email_sender_name(site_name: str) -> str:
     """Display name on mail a site sends through the bench mailbox: `Acme Corp` for `acme-corp.example.com`."""

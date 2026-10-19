@@ -17,11 +17,18 @@ class NewSiteCommand(Command):
     needs_redis: ClassVar[bool] = True
 
     site_name: Annotated[str, Arg(help="Site name (e.g. site2.localhost).", metavar="name")]
-    admin_password: Annotated[str, Arg(help="Frappe admin password.")] = "admin"
+    admin_password: Annotated[str | None, Arg(help="Frappe admin password (default: frappe).")] = None
     apps: Annotated[list[str] | None, Arg(help="Apps to assign (defaults to framework app).")] = None
+    country: Annotated[
+        str | None, Arg(help="Country the setup wizard starts on (default: guessed from the browser).")
+    ] = None
     db_type: Annotated[str | None, Arg(cli=False)] = None
 
     def __post_init__(self) -> None:
+        from pilot.config.site import DEFAULT_ADMIN_PASSWORD
+
+        if self.admin_password is None:
+            self.admin_password = DEFAULT_ADMIN_PASSWORD
         if not isinstance(self.admin_password, str) or not self.admin_password.strip():
             raise BenchError("Site Administrator password must not be empty.")
         if not self.apps:
@@ -38,5 +45,6 @@ class NewSiteCommand(Command):
             self.apps,
             self.admin_password,
             db_type=self.db_type,
+            country=self.country,
             on_progress=self.report,
         )

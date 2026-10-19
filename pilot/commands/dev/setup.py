@@ -23,9 +23,12 @@ class DevSetupCommand(Command):
         str | None,
         Arg(help="Frappe branch for a new bench (default: the checked-out version-N branch, or develop)."),
     ] = None
+    country: Annotated[
+        str | None, Arg(help="Country the new site's setup wizard starts on (default: United States).")
+    ] = None
 
     def run(self) -> None:
         from pilot.core.workspace import Workspace
 
-        Workspace.current().setup(self.database, self.frappe_branch, on_progress=self.report)
+        Workspace.current().setup(self.database, self.frappe_branch, self.country, on_progress=self.report)
         self.report("\nReady. Start the dev server with: pilot dev start")

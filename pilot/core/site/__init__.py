@@ -216,6 +216,12 @@ class Site:
 
         SiteCommands(self).enable_scheduler()
 
+    def set_country(self, country: str) -> None:
+        """The country System Settings holds, which the setup wizard starts on."""
+        from pilot.core.site.commands import SiteCommands
+
+        SiteCommands(self).set_country(country)
+
     def build_assets(self) -> None:
         """Rebuild the assets of the apps this site runs. Assets are shared by every
         site on the bench that has those apps."""
@@ -308,12 +314,13 @@ class Site:
         apps: list[str],
         admin_password: str,
         db_type: str | None = None,
+        country: str | None = None,
         on_progress: Callable[[str], None] = lambda message: None,
     ) -> "Site":
         """Create a site, install apps, reload nginx, and issue TLS if needed."""
         from pilot.core.site.provisioning import SiteProvisioner
 
-        return SiteProvisioner(bench, name, apps, admin_password, db_type).provision(on_progress)
+        return SiteProvisioner(bench, name, apps, admin_password, db_type, country).provision(on_progress)
 
     def finish_provisioning(
         self, apps: list[str], on_progress: Callable[[str], None] = lambda message: None

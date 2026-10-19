@@ -7,6 +7,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from pilot.config.site import DEFAULT_ADMIN_PASSWORD, DEFAULT_DEV_COUNTRY
 from pilot.exceptions import BenchError, ConfigError
 from pilot.utils import benches_dir
 
@@ -16,7 +17,6 @@ if TYPE_CHECKING:
     from pilot.core.site import Site
     from pilot.core.workspace.frappe_clone import FrappeClone
 
-ADMIN_PASSWORD = "admin"
 DEFAULT_DB_TYPE = "sqlite"
 
 
@@ -149,6 +149,7 @@ class Workspace:
         self,
         db_type: str | None = None,
         frappe_branch: str | None = None,
+        country: str | None = None,
         on_progress: Callable[[str], None] = lambda message: None,
     ) -> "Site":
         """Create, initialise, and provision the bench, or bring an existing one
@@ -171,7 +172,7 @@ class Workspace:
             if self.site.exists:
                 self.sync(on_progress)
             else:
-                self.create_site(on_progress)
+                self.create_site(country or DEFAULT_DEV_COUNTRY, on_progress)
         self.configure_site()
         return self.site
 
@@ -258,11 +259,16 @@ class Workspace:
         on_progress(f"Linking {self.app_name} from {self.root}...")
         app.install_linked()
 
-    def create_site(self, on_progress: Callable[[str], None]) -> "Site":
+    def create_site(self, country: str, on_progress: Callable[[str], None]) -> "Site":
         from pilot.core.site import Site
 
         return Site.provision(
-            self.bench, self.site.config.name, [self.app_name], ADMIN_PASSWORD, on_progress=on_progress
+            self.bench,
+            self.site.config.name,
+            [self.app_name],
+            DEFAULT_ADMIN_PASSWORD,
+            country=country,
+            on_progress=on_progress,
         )
 
     def configure_site(self) -> None:
@@ -297,7 +303,7 @@ class Workspace:
         if self.is_running:
             raise BenchError(f"Bench '{bench.config.name}' is already running.")
         on_progress(f"\n  Site   {self.site_url}")
-        on_progress(f"  Login  Administrator / {ADMIN_PASSWORD}\n")
+        on_progress(f"  Login  Administrator / {DEFAULT_ADMIN_PASSWORD}\n")
         bench.start(on_progress)
 
     def drop(self, on_progress: Callable[[str], None] = lambda message: None) -> None:

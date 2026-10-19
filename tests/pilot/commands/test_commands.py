@@ -49,16 +49,15 @@ def _ensure_database_credentials(bench_dir: Path) -> None:
     BenchInitializer(Bench(bench_dir))._ensure_database_credentials()
 
 
-
 def _write_installable_app(app_dir: Path, name: str) -> None:
     """The minimum an app needs to pass validation, which every update runs."""
     (app_dir / "pyproject.toml").write_text(
-        f'[project]\nname = "{name}"\n\n'
-        '[tool.bench.frappe-dependencies]\nfrappe = ">=16.0.0,<17.0.0"\n'
+        f'[project]\nname = "{name}"\n\n[tool.bench.frappe-dependencies]\nfrappe = ">=16.0.0,<17.0.0"\n'
     )
     (app_dir / name).mkdir(exist_ok=True)
     (app_dir / name / "__init__.py").write_text("")
     (app_dir / name / "hooks.py").write_text(f"app_name = '{name}'\n")
+
 
 def test_new_command_creates_directory_and_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from pilot.commands.bench.create import NewCommand
@@ -923,7 +922,9 @@ def test_bench_update_apps_uses_captured_target_for_unpinned_app(tmp_path: Path)
     publish([])
     with patch("pilot.core.app.App.update") as mock_update:
         # A captured pin is used exactly as given - never re-resolved live.
-        bench._update_apps(None, lambda message: None, {"helpdesk": RevisionPin(kind="commit", ref="deadbeef")})
+        bench._update_apps(
+            None, lambda message: None, {"helpdesk": RevisionPin(kind="commit", ref="deadbeef")}
+        )
 
     mock_update.assert_called_once_with(pin=RevisionPin(kind="commit", ref="deadbeef"))
 
@@ -1490,7 +1491,9 @@ def test_new_app_reloads_workers_so_sites_can_import_it(tmp_path: Path) -> None:
     mock_reload.assert_called_once()
 
 
-def test_list_site_apps_marks_apps_the_bench_does_not_have(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+def test_list_site_apps_marks_apps_the_bench_does_not_have(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
     from pilot.commands.sites.list_apps import ListSiteAppsCommand
 
     bench = make_bench(tmp_path)
@@ -1503,3 +1506,14 @@ def test_list_site_apps_marks_apps_the_bench_does_not_have(tmp_path: Path, capsy
     output = capsys.readouterr()
     assert output.out.splitlines() == ["frappe", "commera"]
     assert "commera is not on this bench" in output.err
+
+
+def test_new_site_defaults_to_the_documented_admin_password(tmp_path: Path) -> None:
+    from pilot.commands.sites.create import NewSiteCommand
+
+    bench = make_bench(tmp_path)
+    with patch("pilot.core.site.Site.provision") as provision:
+        NewSiteCommand(bench, site_name="a.localhost", country="Germany").run()
+
+    assert provision.call_args.args[3] == "frappe"
+    assert provision.call_args.kwargs["country"] == "Germany"

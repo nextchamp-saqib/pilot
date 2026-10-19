@@ -149,3 +149,43 @@ def test_a_new_site_sends_mail_under_its_first_label_in_title_case(tmp_path: Pat
 
 def test_the_sender_name_turns_dashes_and_underscores_into_spaces() -> None:
     assert email_sender_name("north_star--labs.example.com") == "North Star Labs"
+
+
+def _provision(provisioner: SiteProvisioner) -> MagicMock:
+    def create_site(site: Site, db_type: str | None = None) -> None:
+        site.path.mkdir(parents=True)
+        (site.path / "site_config.json").write_text("{}")
+
+    with (
+        patch("pilot.core.site.provisioning.validate_new_site", return_value=False),
+        patch("pilot.core.site.provisioning.should_enable_ssl", return_value=False),
+        patch.object(Site, "create", create_site),
+        patch.object(provisioner, "finish"),
+        patch.object(Site, "set_country") as set_country,
+    ):
+        provisioner.provision(lambda _: None)
+    return set_country
+
+
+def test_a_new_site_starts_its_setup_wizard_on_the_given_country(tmp_path: Path) -> None:
+    provisioner = _provisioner(tmp_path)
+    provisioner.country = "United States"
+
+    _provision(provisioner).assert_called_once_with("United States")
+
+
+def test_without_a_country_the_setup_wizard_guesses_it(tmp_path: Path) -> None:
+    _provision(_provisioner(tmp_path)).assert_not_called()
+
+
+def test_set_country_checks_that_frappe_knows_the_country(tmp_path: Path) -> None:
+    from pilot.core.site.commands import SiteCommands
+
+    bench = Bench(BenchConfig._from_dict(_BASE_DATA), tmp_path)
+    site = bench.site("site1.example.com")
+    with patch("pilot.core.site.commands.run_command") as run:
+        SiteCommands(site).set_country("United States")
+
+    argv = run.call_args.args[0]
+    assert argv[-2:] == ["site1.example.com", "United States"]
+    assert "frappe.db.exists('Country'" in argv[2]
